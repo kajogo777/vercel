@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import os from 'node:os';
 import { isError } from '@vercel/error-utils';
 import type { GlobalConfig } from '@vercel-internals/types';
-import { crashFrame, gatedFlag, gatedToken } from './sanitize';
+import { REDACTED, crashFrame, gatedFlag, gatedToken, slug } from './sanitize';
 import output from '../../output-manager';
 import { spawn } from 'node:child_process';
 import { PROJECT_ENV_TARGET } from '@vercel-internals/constants';
@@ -191,6 +191,10 @@ export class TelemetryClient {
       this.trackErrorCode(getProperty(err, 'code', 'string'));
       this.trackErrorSlug(getProperty(err, 'slug', 'string'));
       this.trackErrorAction(getProperty(err, 'action', 'string'));
+      const link = getProperty(err, 'link', 'string');
+      if (isV2() && link) {
+        this.trackDocsLinkShown(link);
+      }
     }
 
     if (opts.agent && !(ref && this.serverMessagesSeen.has(ref))) {
@@ -235,6 +239,51 @@ export class TelemetryClient {
       return;
     }
     this.track({ key: 'subcommand_not_found', value: gatedToken(token) });
+  }
+
+  protected trackDocsLinkShown(link: string) {
+    if (!isV2()) {
+      return;
+    }
+    this.track({ key: 'docs_link_shown', value: slug(link) });
+  }
+
+  protected trackHelpRendered(context: string) {
+    if (!isV2()) {
+      return;
+    }
+    this.track({ key: 'help_rendered', value: gatedToken(context) });
+  }
+
+  protected trackProjectConfigError(kind: 'parse' | 'not_found_explicit') {
+    if (!isV2()) {
+      return;
+    }
+    this.track({ key: 'project_config_error', value: kind });
+  }
+
+  protected trackProjectConfigValidation(code: string | undefined) {
+    if (!isV2()) {
+      return;
+    }
+    this.track({
+      key: 'project_config_validation',
+      value: code && /^[A-Z0-9_]{1,64}$/.test(code) ? code : REDACTED,
+    });
+  }
+
+  protected trackConfigError(kind: 'read' | 'write') {
+    if (!isV2()) {
+      return;
+    }
+    this.track({ key: 'config_error', value: kind });
+  }
+
+  protected trackAuthConfigError(kind: 'read') {
+    if (!isV2()) {
+      return;
+    }
+    this.track({ key: 'auth_config_error', value: kind });
   }
 
   protected trackCrash(err: unknown) {
