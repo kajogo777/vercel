@@ -29,10 +29,6 @@ import { isNativeBinaryInstall } from '../native-install';
 const LogLabel = `['telemetry']:`;
 const MAX_ERROR_SERVER_MESSAGE_LENGTH = 500;
 
-function isV2(): boolean {
-  return process.env.VERCEL_CLI_TELEMETRY_V2 === '1';
-}
-
 function getProperty<T extends 'string' | 'number'>(
   value: unknown,
   key: string,
@@ -168,9 +164,6 @@ export class TelemetryClient {
   }
 
   protected trackExitCode(code: number) {
-    if (!isV2()) {
-      return;
-    }
     this.track({
       key: 'exit_code',
       value: String(code),
@@ -181,17 +174,14 @@ export class TelemetryClient {
   private serverMessagesSeen = new WeakSet<object>();
 
   /**
-   * Structured error fields for all users under v2; the free-text server
-   * message only for agent sessions. Deduped per error object because both
+   * Structured error fields for all users; the free-text server message
+   * only for agent sessions. Deduped per error object because both
    * `printError` and the top-level handler may see the same error.
    */
   protected trackError(err: unknown, opts: { agent?: boolean } = {}) {
     const ref = typeof err === 'object' && err !== null ? err : undefined;
 
-    if (
-      (opts.agent || isV2()) &&
-      !(ref && this.structuredErrorsSeen.has(ref))
-    ) {
+    if (!(ref && this.structuredErrorsSeen.has(ref))) {
       if (ref) {
         this.structuredErrorsSeen.add(ref);
       }
@@ -200,7 +190,7 @@ export class TelemetryClient {
       this.trackErrorSlug(getProperty(err, 'slug', 'string'));
       this.trackErrorAction(getProperty(err, 'action', 'string'));
       const link = getProperty(err, 'link', 'string');
-      if (isV2() && link) {
+      if (link) {
         this.trackDocsLinkShown(link);
       }
     }
@@ -217,9 +207,6 @@ export class TelemetryClient {
   }
 
   protected trackParseError(err: unknown) {
-    if (!isV2()) {
-      return;
-    }
     const code = getProperty(err, 'code', 'string');
     let value = 'unknown';
     if (code === 'ARG_UNKNOWN_OPTION' && isError(err)) {
@@ -232,9 +219,6 @@ export class TelemetryClient {
   }
 
   protected trackCommandNotFound(token: string, suggestion?: string) {
-    if (!isV2()) {
-      return;
-    }
     this.track({ key: 'command_not_found', value: gatedToken(token) });
     this.track({
       key: 'command_not_found_suggestion',
@@ -243,37 +227,22 @@ export class TelemetryClient {
   }
 
   protected trackSubcommandNotFound(token: string) {
-    if (!isV2()) {
-      return;
-    }
     this.track({ key: 'subcommand_not_found', value: gatedToken(token) });
   }
 
   protected trackDocsLinkShown(link: string) {
-    if (!isV2()) {
-      return;
-    }
     this.track({ key: 'docs_link_shown', value: slug(link) });
   }
 
   protected trackHelpRendered(context: string) {
-    if (!isV2()) {
-      return;
-    }
     this.track({ key: 'help_rendered', value: gatedToken(context) });
   }
 
   protected trackProjectConfigError(kind: 'parse' | 'not_found_explicit') {
-    if (!isV2()) {
-      return;
-    }
     this.track({ key: 'project_config_error', value: kind });
   }
 
   protected trackProjectConfigValidation(code: string | undefined) {
-    if (!isV2()) {
-      return;
-    }
     this.track({
       key: 'project_config_validation',
       value: code && /^[A-Z0-9_]{1,64}$/.test(code) ? code : REDACTED,
@@ -281,23 +250,14 @@ export class TelemetryClient {
   }
 
   protected trackConfigError(kind: 'read' | 'write') {
-    if (!isV2()) {
-      return;
-    }
     this.track({ key: 'config_error', value: kind });
   }
 
   protected trackAuthConfigError(kind: 'read') {
-    if (!isV2()) {
-      return;
-    }
     this.track({ key: 'auth_config_error', value: kind });
   }
 
   protected trackDeployState(readyState: string) {
-    if (!isV2()) {
-      return;
-    }
     this.trackCommandOutput({
       key: 'deploy_state',
       value: /^[A-Z_]{1,32}$/.test(readyState) ? readyState : REDACTED,
@@ -305,9 +265,6 @@ export class TelemetryClient {
   }
 
   protected trackLogsMatched(matched: boolean) {
-    if (!isV2()) {
-      return;
-    }
     this.trackCommandOutput({
       key: 'logs_matched',
       value: matched ? 'SOME' : 'NONE',
@@ -315,14 +272,11 @@ export class TelemetryClient {
   }
 
   protected trackArgsFingerprint(argv: readonly string[], salt: string) {
-    if (!isV2()) {
-      return;
-    }
     this.track({ key: 'args_fingerprint', value: fp(argv, salt) });
   }
 
   protected trackAgentTaskId(id: string | undefined) {
-    if (!isV2() || !id) {
+    if (!id) {
       return;
     }
     // UUID-shape only: structurally incapable of carrying user content.
@@ -335,7 +289,7 @@ export class TelemetryClient {
   }
 
   protected trackAgentVersion(version: string | undefined) {
-    if (!isV2() || !version) {
+    if (!version) {
       return;
     }
     this.track({
@@ -347,7 +301,7 @@ export class TelemetryClient {
   protected trackAgentDetectionSource(
     source: 'env' | 'proctree' | 'both' | undefined
   ) {
-    if (!isV2() || !source) {
+    if (!source) {
       return;
     }
     this.track({ key: 'agent_detection_source', value: source });
@@ -356,7 +310,7 @@ export class TelemetryClient {
   protected trackAgentDetectionConflict(
     conflict: { env: string; proctree: string } | undefined
   ) {
-    if (!isV2() || !conflict) {
+    if (!conflict) {
       return;
     }
     this.track({
@@ -366,16 +320,13 @@ export class TelemetryClient {
   }
 
   protected trackContextId(contextId: string | undefined) {
-    if (!isV2() || !contextId) {
+    if (!contextId) {
       return;
     }
     this.track({ key: 'context_id', value: contextId });
   }
 
   protected trackCrash(err: unknown) {
-    if (!isV2()) {
-      return;
-    }
     const name =
       isError(err) && /^[a-zA-Z]{1,64}$/.test(err.name) ? err.name : 'Error';
     const stack = isError(err) ? err.stack : undefined;
