@@ -4,7 +4,9 @@ import type { RootTelemetryClient } from './root';
 // telemetry without threading a client through every call site.
 let reporter: RootTelemetryClient | undefined;
 
-export function setTelemetryReporter(client: RootTelemetryClient): void {
+export function setTelemetryReporter(
+  client: RootTelemetryClient | undefined
+): void {
   reporter = client;
 }
 
